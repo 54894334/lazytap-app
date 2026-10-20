@@ -28,20 +28,27 @@ jobs:
       - name: 编译 App
         run: |
           make clean || true
-          make
+          make FINALPACKAGE=1
 
       - name: 组装 .app 并打 ipa / tipa
         run: |
-          APP=".theos/_/Applications/LazyTap.app"
-          if [ ! -d "$APP" ]; then
-            echo "没有生成 .app，找找看："
-            find .theos -maxdepth 4 -name "*.app" -print
-            exit 1
+          # Theos 的 application 产物在 .theos/obj/…/LazyTap.app；
+          # 跑过 make package 才会额外落到 .theos/_/Applications。
+          APP=""
+          for c in ".theos/_/Applications/LazyTap.app" ".theos/obj/LazyTap.app" ".theos/obj/debug/LazyTap.app"; do
+            if [ -d "$c" ]; then APP="$c"; break; fi
+          done
+          if [ -z "$APP" ]; then
+            APP=$(find .theos -type d -name "LazyTap.app" | sort | head -n 1)
           fi
-          echo "=== 内容 ==="; ls -la "$APP"
+          if [ -z "$APP" ] || [ ! -f "$APP/LazyTap" ]; then
+            echo "没找到 .app 或主二进制"; find .theos -maxdepth 4 -name "*.app" -print; exit 1
+          fi
+          echo "APP=$APP"
           file "$APP/LazyTap"
+          lipo -info "$APP/LazyTap" || true
 
-          # 图标等资源：Theos 只保证 Info.plist，其余自己补
+          # 图标等资源（Theos 只保证 Info.plist 进包）
           cp LazyTap/*.png "$APP"/ 2>/dev/null || true
 
           # 保底重签：把 entitlements 明确写进主二进制（TrollStore 安装时会保留）
