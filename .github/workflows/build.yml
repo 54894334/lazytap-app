@@ -1,0 +1,72 @@
+name: build-app
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Theos + iOS SDK
+        run: |
+          brew install ldid xz || true
+          export THEOS=$HOME/theos
+          git clone --depth 1 --recursive https://github.com/theos/theos.git "$THEOS"
+          mkdir -p "$THEOS/sdks"
+          curl -fsSL -o /tmp/sdks.tar.gz https://github.com/theos/sdks/archive/refs/heads/master.tar.gz
+          tar -xzf /tmp/sdks.tar.gz -C /tmp
+          cp -R /tmp/sdks-master/*.sdk "$THEOS/sdks/" || true
+          echo "THEOS=$THEOS" >> "$GITHUB_ENV"
+
+      - name: 编译 App
+        run: |
+          make clean || true
+          make
+
+      - name: 组装 .app 并打 ipa / tipa
+        run: |
+          APP=".theos/_/Applications/LazyTap.app"
+          if [ ! -d "$APP" ]; then
+            echo "没有生成 .app，找找看："
+            find .theos -maxdepth 4 -name "*.app" -print
+            exit 1
+          fi
+          echo "=== 内容 ==="; ls -la "$APP"
+          file "$APP/LazyTap"
+
+          # 图标等资源：Theos 只保证 Info.plist，其余自己补
+          cp LazyTap/*.png "$APP"/ 2>/dev/null || true
+
+          # 保底重签：把 entitlements 明确写进主二进制（TrollStore 安装时会保留）
+          ldid -Sentitlements.plist "$APP/LazyTap"
+          echo "=== 二进制 entitlements ==="
+          ldid -e "$APP/LazyTap" || true
+
+          rm -rf Payload && mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry LazyTap.tipa Payload
+          cp LazyTap.tipa LazyTap.ipa
+          ls -la LazyTap.tipa LazyTap.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LazyTap-ipa
+          path: |
+            LazyTap.tipa
+            LazyTap.ipa
+
+      - name: 回推产物到 dist 分支（免登录取货）
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B dist
+          git add -f LazyTap.tipa LazyTap.ipa
+          git commit -m "build: LazyTap app ${GITHUB_SHA::7}" || echo "no change"
+          git push -f origin dist

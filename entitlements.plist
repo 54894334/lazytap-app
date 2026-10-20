@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- 平台化：TrollStore 安装时靠这条拿到系统级权限 -->
+    <key>platform-application</key>
+    <true/>
+    <!-- 无沙盒：后台还要持续派发事件，沙盒里容易被回收 -->
+    <key>com.apple.private.security.no-sandbox</key>
+    <true/>
+
+    <!-- 触摸注入必需：不签这三条，事件建得出来但会被内核静默丢弃 -->
+    <key>com.apple.private.hid.client.event-dispatch</key>
+    <true/>
+    <key>com.apple.private.hid.client.event-filter</key>
+    <true/>
+    <key>com.apple.private.hid.client.event-monitor</key>
+    <true/>
+
+    <key>com.apple.security.exception.mach-lookup.global-name</key>
+    <array>
+        <string>com.apple.iohid.server</string>
+    </array>
+</dict>
+</plist>
