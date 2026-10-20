@@ -48,7 +48,11 @@ jobs:
           file "$APP/LazyTap"
           lipo -info "$APP/LazyTap" || true
 
-          # 图标等资源（Theos 只保证 Info.plist 进包）
+          # Info.plist 必须自己放进 .app：make（非 package）不会把它拷进 obj 里的 bundle
+          cp LazyTap/Info.plist "$APP/Info.plist"
+          plutil -lint "$APP/Info.plist"
+
+          # 图标等资源
           cp LazyTap/*.png "$APP"/ 2>/dev/null || true
 
           # 保底重签：把 entitlements 明确写进主二进制（TrollStore 安装时会保留）
@@ -60,6 +64,10 @@ jobs:
           cp -R "$APP" Payload/
           zip -qry LazyTap.tipa Payload
           cp LazyTap.tipa LazyTap.ipa
+          echo "=== 包内清单 ==="
+          unzip -l LazyTap.tipa
+          # 硬校验：没有 Info.plist 的 ipa 装不上
+          unzip -l LazyTap.tipa | grep -q "Payload/LazyTap.app/Info.plist" || { echo "缺 Info.plist"; exit 1; }
           ls -la LazyTap.tipa LazyTap.ipa
 
       - uses: actions/upload-artifact@v4
